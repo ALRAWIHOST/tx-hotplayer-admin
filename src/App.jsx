@@ -17,6 +17,7 @@ const API = 'https://tx-hotplayer-api.onrender.com';
 
 export default function App() {
   const [devices, setDevices] = useState([]);
+  const [playlists, setPlaylists] = useState([]);
   const [mac, setMac] = useState('');
   const [expireAt, setExpireAt] = useState('2026-12-31');
   const [query, setQuery] = useState('');
@@ -31,6 +32,19 @@ export default function App() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function loadPlaylists() {
+    const res = await fetch(`${API}/playlists`);
+    const data = await res.json();
+    setPlaylists(Array.isArray(data) ? data : []);
+  }
+
+  async function refreshAll() {
+    await Promise.all([
+      loadDevices(),
+      loadPlaylists()
+    ]);
   }
 
   async function activateDevice(e) {
@@ -56,8 +70,23 @@ export default function App() {
     await loadDevices();
   }
 
+  async function assignPlaylist(deviceMac, playlistId) {
+    if (!playlistId) return;
+
+    await fetch(`${API}/devices/assign-playlist`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mac: deviceMac,
+        playlist_id: Number(playlistId)
+      })
+    });
+
+    await loadDevices();
+  }
+
   useEffect(() => {
-    loadDevices();
+    refreshAll();
   }, []);
 
   const stats = useMemo(() => {
@@ -81,10 +110,11 @@ export default function App() {
             <Shield size={30}/>
             TX HOTPLAYER Admin
           </h1>
+
           <p>Professional MAC Activation Dashboard</p>
         </div>
 
-        <button onClick={loadDevices}>
+        <button onClick={refreshAll}>
           <RefreshCcw size={16}/>
           Refresh
         </button>
@@ -157,6 +187,10 @@ export default function App() {
           <p className="muted">
             Showing {filteredDevices.length} of {devices.length} devices.
           </p>
+
+          <p className="muted">
+            Playlists loaded: {playlists.length}
+          </p>
         </div>
       </section>
 
@@ -183,9 +217,23 @@ export default function App() {
                 {device.blocked ? 'Blocked' : device.active ? 'Active' : 'Inactive'}
               </span>
 
-              <span>
-                {device.playlist_id ? `#${device.playlist_id}` : 'None'}
-              </span>
+              <select
+                value={device.playlist_id || ''}
+                onChange={e => assignPlaylist(device.mac, e.target.value)}
+              >
+                <option value="">
+                  No Playlist
+                </option>
+
+                {playlists.map(playlist => (
+                  <option
+                    key={playlist.id}
+                    value={playlist.id}
+                  >
+                    #{playlist.id} {playlist.name}
+                  </option>
+                ))}
+              </select>
 
               <span>
                 {device.expire_at?.slice(0, 10)}
@@ -208,4 +256,12 @@ export default function App() {
       </section>
     </main>
   );
+}
+select{
+  background:#020617;
+  color:white;
+  border:1px solid #334155;
+  border-radius:12px;
+  padding:10px 12px;
+  outline:none;
 }

@@ -257,11 +257,3 @@ export default function App() {
     </main>
   );
 }
-select{
-  background:#020617;
-  color:white;
-  border:1px solid #334155;
-  border-radius:12px;
-  padding:10px 12px;
-  outline:none;
-}

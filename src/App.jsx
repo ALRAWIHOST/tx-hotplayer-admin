@@ -1,12 +1,35 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Server, Tv, Shield, RefreshCcw, Ban, Search, CheckCircle,
-  XCircle, Database, Trash2, Unlock, Clock3, Check, X, DollarSign
+  XCircle, Database, Trash2, Unlock, Clock3, DollarSign
 } from 'lucide-react';
 
 import './App.css';
 
 const API = 'https://tx-hotplayer-api.onrender.com';
+const ONLINE_MINUTES = 5;
+
+function isOnline(lastSeen) {
+  if (!lastSeen) return false;
+
+  const lastSeenTime = new Date(lastSeen).getTime();
+
+  if (Number.isNaN(lastSeenTime)) return false;
+
+  const diffMinutes = (Date.now() - lastSeenTime) / 60000;
+
+  return diffMinutes < ONLINE_MINUTES;
+}
+
+function formatLastSeen(lastSeen) {
+  if (!lastSeen) return '-';
+
+  const lastSeenTime = new Date(lastSeen);
+
+  if (Number.isNaN(lastSeenTime.getTime())) return '-';
+
+  return lastSeenTime.toLocaleString();
+}
 
 export default function App() {
   const [devices, setDevices] = useState([]);
@@ -103,21 +126,6 @@ export default function App() {
     await refreshAll();
   }
 
-  async function approveRequest(id) {
-    await fetch(`${API}/activation-requests/${id}/approve`, {
-      method: 'POST'
-    });
-
-    await refreshAll();
-  }
-
-  async function rejectRequest(id) {
-    await fetch(`${API}/activation-requests/${id}/reject`, {
-      method: 'POST'
-    });
-
-    await refreshAll();
-  }
 
   useEffect(() => {
     refreshAll();
@@ -136,8 +144,9 @@ export default function App() {
       active: devices.filter(d => d.active && !d.blocked).length,
       blocked: devices.filter(d => d.blocked).length,
       withPlaylist: devices.filter(d => d.playlist_id).length,
-      pendingRequests: requests.filter(r => r.status === 'pending').length,
       paidActivations: approved.length,
+      online: devices.filter(d => isOnline(d.last_seen)).length,
+      offline: devices.filter(d => !isOnline(d.last_seen)).length,
       revenue: revenue.toFixed(2)
     };
   }, [devices, requests]);
@@ -181,6 +190,12 @@ export default function App() {
           <b>{stats.active}</b>
         </div>
 
+        <div className="stat-card success">
+          <Clock3 />
+          <span>Online</span>
+          <b>{stats.online}</b>
+        </div>
+
         <div className="stat-card danger-card">
           <XCircle />
           <span>Blocked</span>
@@ -193,11 +208,6 @@ export default function App() {
           <b>{stats.withPlaylist}</b>
         </div>
 
-        <div className="stat-card">
-          <Clock3 />
-          <span>Pending</span>
-          <b>{stats.pendingRequests}</b>
-        </div>
 
         <div className="stat-card success">
           <DollarSign />
@@ -255,6 +265,10 @@ export default function App() {
           <p className="muted">
             Paid activations: {stats.paidActivations}
           </p>
+
+          <p className="muted">
+            Online devices: {stats.online}
+          </p>
         </div>
       </section>
 
@@ -265,20 +279,30 @@ export default function App() {
         </h2>
 
         <div className="table">
-          <div className="table-head">
+          <div className="table-head devices-table-head">
             <span>MAC</span>
             <span>Status</span>
+            <span>Online</span>
+            <span>Last Seen</span>
             <span>Playlist</span>
             <span>Expires</span>
             <span>Actions</span>
           </div>
 
           {filteredDevices.map(device => (
-            <div className="table-row" key={device.id}>
+            <div className="table-row devices-table-row" key={device.id}>
               <b>{device.mac}</b>
 
               <span className={device.blocked ? 'bad' : device.active ? 'good' : 'pending'}>
                 {device.blocked ? 'Blocked' : device.active ? 'Active' : 'Inactive'}
+              </span>
+
+              <span className={isOnline(device.last_seen) ? 'good' : 'bad'}>
+                {isOnline(device.last_seen) ? '🟢 Online' : '🔴 Offline'}
+              </span>
+
+              <span title={device.last_seen || ''}>
+                {formatLastSeen(device.last_seen)}
               </span>
 
               <select
@@ -333,98 +357,6 @@ export default function App() {
 
         {filteredDevices.length === 0 && (
           <p className="muted">No devices found.</p>
-        )}
-      </section>
-
-      <section className="card wide-card">
-        <h2>
-          <DollarSign size={18}/>
-          Payments & Activations ({requests.length})
-        </h2>
-
-        <div className="table payments-table">
-          <div className="table-head">
-            <span>MAC</span>
-            <span>Customer</span>
-            <span>Email</span>
-            <span>Plan</span>
-            <span>Price</span>
-            <span>Transaction</span>
-            <span>Status</span>
-            <span>Actions</span>
-          </div>
-
-          {requests.map(request => (
-            <div className="table-row" key={request.id}>
-              <b>{request.mac}</b>
-
-              <span>
-                {request.payer_name || '-'}
-              </span>
-
-              <span title={request.payer_email || ''}>
-                {request.payer_email || '-'}
-              </span>
-
-              <span>
-                {request.plan}
-              </span>
-
-              <span>
-                {request.price}
-              </span>
-
-              <span title={request.transaction_id || ''}>
-                {request.transaction_id
-                  ? request.transaction_id.slice(0, 12)
-                  : '-'}
-              </span>
-
-              <span
-                className={
-                  request.status === 'approved'
-                    ? 'good'
-                    : request.status === 'rejected'
-                    ? 'bad'
-                    : 'pending'
-                }
-              >
-                {request.status === 'approved'
-                  ? 'Paid / Approved'
-                  : request.status}
-              </span>
-
-              <div className="actions">
-                {request.status === 'pending' ? (
-                  <>
-                    <button
-                      className="success-btn"
-                      onClick={() => approveRequest(request.id)}
-                    >
-                      <Check size={14}/>
-                      Approve
-                    </button>
-
-                    <button
-                      className="danger"
-                      onClick={() => rejectRequest(request.id)}
-                    >
-                      <X size={14}/>
-                      Reject
-                    </button>
-                  </>
-                ) : (
-                  <span className="muted">
-                    No action
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {requests.length === 0 && (
-          <p className="muted">No payment or activation records found.</p>
         )}
       </section>
 

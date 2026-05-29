@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Server, Tv, Shield, RefreshCcw, Ban, Search, CheckCircle,
-  XCircle, Database, Trash2, Unlock, Clock3, DollarSign
+  XCircle, Database, Trash2, Unlock, Clock3, DollarSign,
+  Menu, Wifi, ListVideo, Bell, User, Download, Filter, Activity,
+  CreditCard, Settings, LogOut
 } from 'lucide-react';
 
 import './App.css';
@@ -11,23 +13,15 @@ const ONLINE_MINUTES = 5;
 
 function isOnline(lastSeen) {
   if (!lastSeen) return false;
-
   const lastSeenTime = new Date(lastSeen).getTime();
-
   if (Number.isNaN(lastSeenTime)) return false;
-
-  const diffMinutes = (Date.now() - lastSeenTime) / 60000;
-
-  return diffMinutes < ONLINE_MINUTES;
+  return (Date.now() - lastSeenTime) / 60000 < ONLINE_MINUTES;
 }
 
 function formatLastSeen(lastSeen) {
   if (!lastSeen) return '-';
-
   const lastSeenTime = new Date(lastSeen);
-
   if (Number.isNaN(lastSeenTime.getTime())) return '-';
-
   return lastSeenTime.toLocaleString();
 }
 
@@ -69,13 +63,11 @@ export default function App() {
 
   async function activateDevice(e) {
     e.preventDefault();
-
     await fetch(`${API}/devices/activate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mac, expire_at: expireAt })
     });
-
     setMac('');
     await refreshAll();
   }
@@ -86,7 +78,6 @@ export default function App() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mac: deviceMac })
     });
-
     await refreshAll();
   }
 
@@ -96,44 +87,30 @@ export default function App() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mac: deviceMac })
     });
-
     await refreshAll();
   }
 
   async function deleteDevice(deviceMac) {
     const ok = window.confirm(`Delete device ${deviceMac}?`);
     if (!ok) return;
-
-    await fetch(`${API}/devices/${encodeURIComponent(deviceMac)}`, {
-      method: 'DELETE'
-    });
-
+    await fetch(`${API}/devices/${encodeURIComponent(deviceMac)}`, { method: 'DELETE' });
     await refreshAll();
   }
 
   async function assignPlaylist(deviceMac, playlistId) {
     if (!playlistId) return;
-
     await fetch(`${API}/devices/assign-playlist`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        mac: deviceMac,
-        playlist_id: Number(playlistId)
-      })
+      body: JSON.stringify({ mac: deviceMac, playlist_id: Number(playlistId) })
     });
-
     await refreshAll();
   }
 
-
-  useEffect(() => {
-    refreshAll();
-  }, []);
+  useEffect(() => { refreshAll(); }, []);
 
   const stats = useMemo(() => {
     const approved = requests.filter(r => r.status === 'approved');
-
     const revenue = approved.reduce((sum, r) => {
       const value = Number(String(r.price || '0').replace('$', ''));
       return sum + (Number.isNaN(value) ? 0 : value);
@@ -146,276 +123,160 @@ export default function App() {
       withPlaylist: devices.filter(d => d.playlist_id).length,
       paidActivations: approved.length,
       online: devices.filter(d => isOnline(d.last_seen)).length,
-      offline: devices.filter(d => !isOnline(d.last_seen)).length,
       revenue: revenue.toFixed(2)
     };
   }, [devices, requests]);
 
   const filteredDevices = devices.filter(d =>
-    d.mac.toLowerCase().includes(query.toLowerCase())
+    String(d.mac || '').toLowerCase().includes(query.toLowerCase())
   );
 
-  const recentPayments = requests
-    .filter(r => r.status === 'approved')
-    .slice(0, 10);
+  const recentPayments = requests.filter(r => r.status === 'approved').slice(0, 10);
+
+  const statCards = [
+    { label: 'Total Devices', value: stats.total, note: 'All registered devices', icon: Tv, color: 'blue' },
+    { label: 'Active Devices', value: stats.active, note: 'Currently active', icon: CheckCircle, color: 'green' },
+    { label: 'Online Devices', value: stats.online, note: 'Last 5 minutes', icon: Wifi, color: 'orange' },
+    { label: 'Blocked Devices', value: stats.blocked, note: 'Blocked access', icon: XCircle, color: 'red' },
+    { label: 'Revenue', value: `$${stats.revenue}`, note: 'Total paid', icon: DollarSign, color: 'blue' }
+  ];
 
   return (
-    <main className="app">
-      <header className="topbar">
-        <div>
-          <h1>
-            <Shield size={30}/>
-            TX HOTPLAYER Admin
-          </h1>
-
-          <p>Professional MAC Activation Dashboard</p>
+    <div className="dashboard-shell">
+      <aside className="sidebar">
+        <div className="brand">
+          <div className="brand-icon"><Shield size={28} /></div>
+          <div><strong>TX HOTPLAYER</strong><span>Admin</span></div>
         </div>
 
-        <button onClick={refreshAll}>
-          <RefreshCcw size={16}/>
-          Refresh
-        </button>
-      </header>
+        <nav className="nav-menu">
+          <a className="active"><Tv size={18} /> Dashboard</a>
+          <a><Server size={18} /> Devices</a>
+          <a><ListVideo size={18} /> Playlists</a>
+          <a><CreditCard size={18} /> Payments</a>
+          <a><Activity size={18} /> Activations</a>
+          <a><Settings size={18} /> Settings</a>
+        </nav>
 
-      <section className="stats">
-        <div className="stat-card">
-          <Tv />
-          <span>Total Devices</span>
-          <b>{stats.total}</b>
+        <div className="revenue-box">
+          <span>Total Revenue</span>
+          <strong>${stats.revenue}</strong>
+          <small>This Month</small>
         </div>
 
-        <div className="stat-card success">
-          <CheckCircle />
-          <span>Active</span>
-          <b>{stats.active}</b>
-        </div>
+        <button className="logout-btn"><LogOut size={17} /> Log Out</button>
+      </aside>
 
-        <div className="stat-card success">
-          <Clock3 />
-          <span>Online</span>
-          <b>{stats.online}</b>
-        </div>
-
-        <div className="stat-card danger-card">
-          <XCircle />
-          <span>Blocked</span>
-          <b>{stats.blocked}</b>
-        </div>
-
-        <div className="stat-card">
-          <Database />
-          <span>With Playlist</span>
-          <b>{stats.withPlaylist}</b>
-        </div>
-
-
-        <div className="stat-card success">
-          <DollarSign />
-          <span>Revenue</span>
-          <b>${stats.revenue}</b>
-        </div>
-      </section>
-
-      <section className="layout">
-        <div className="card">
-          <h2>
-            <Server size={18}/>
-            Activate Device
-          </h2>
-
-          <form onSubmit={activateDevice}>
-            <input
-              placeholder="MAC Address"
-              value={mac}
-              onChange={e => setMac(e.target.value)}
-            />
-
-            <input
-              type="date"
-              value={expireAt}
-              onChange={e => setExpireAt(e.target.value)}
-            />
-
-            <button>
-              Activate MAC
-            </button>
-          </form>
-        </div>
-
-        <div className="card">
-          <h2>
-            <Search size={18}/>
-            Search Device
-          </h2>
-
-          <input
-            placeholder="Search by MAC..."
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-          />
-
-          <p className="muted">
-            Showing {filteredDevices.length} of {devices.length} devices.
-          </p>
-
-          <p className="muted">
-            Playlists loaded: {playlists.length}
-          </p>
-
-          <p className="muted">
-            Paid activations: {stats.paidActivations}
-          </p>
-
-          <p className="muted">
-            Online devices: {stats.online}
-          </p>
-        </div>
-      </section>
-
-      <section className="card">
-        <h2>
-          <Tv size={18}/>
-          Devices {loading ? '...' : `(${filteredDevices.length})`}
-        </h2>
-
-        <div className="table">
-          <div className="table-head devices-table-head">
-            <span>MAC</span>
-            <span>Status</span>
-            <span>Online</span>
-            <span>Last Seen</span>
-            <span>Playlist</span>
-            <span>Expires</span>
-            <span>Actions</span>
+      <main className="main-content">
+        <header className="dashboard-header">
+          <div className="title-row">
+            <button className="icon-button"><Menu size={22} /></button>
+            <div>
+              <h1>Dashboard</h1>
+              <p>Welcome back! Here's what's happening with your service.</p>
+            </div>
           </div>
 
-          {filteredDevices.map(device => (
-            <div className="table-row devices-table-row" key={device.id}>
-              <b>{device.mac}</b>
+          <div className="header-actions">
+            <div className="search-box">
+              <Search size={18} />
+              <input placeholder="Search MAC address..." value={query} onChange={e => setQuery(e.target.value)} />
+            </div>
+            <Bell className="bell" size={20} />
+            <div className="admin-chip"><User size={16} /> Admin</div>
+            <button className="refresh-btn" onClick={refreshAll}><RefreshCcw size={16} /> Refresh Data</button>
+          </div>
+        </header>
 
-              <span className={device.blocked ? 'bad' : device.active ? 'good' : 'pending'}>
-                {device.blocked ? 'Blocked' : device.active ? 'Active' : 'Inactive'}
-              </span>
+        <section className="stats-grid">
+          {statCards.map(({ label, value, note, icon: Icon, color }) => (
+            <div className="stat-card" key={label}>
+              <div className={`stat-icon ${color}`}><Icon size={25} /></div>
+              <div><span>{label}</span><b>{value}</b><small>{note}</small></div>
+            </div>
+          ))}
+        </section>
 
-              <span className={isOnline(device.last_seen) ? 'good' : 'bad'}>
-                {isOnline(device.last_seen) ? '🟢 Online' : '🔴 Offline'}
-              </span>
+        <section className="top-grid">
+          <div className="panel activate-panel">
+            <h2><Server size={19} /> Activate New Device</h2>
+            <form onSubmit={activateDevice}>
+              <input placeholder="MAC Address (e.g. TX:75:C8:87:CB)" value={mac} onChange={e => setMac(e.target.value)} />
+              <input type="date" value={expireAt} onChange={e => setExpireAt(e.target.value)} />
+              <button><Server size={17} /> Activate Device</button>
+            </form>
+          </div>
 
-              <span title={device.last_seen || ''}>
-                {formatLastSeen(device.last_seen)}
-              </span>
+          <div className="panel overview-panel">
+            <h2><Activity size={19} /> Quick Overview</h2>
+            <div className="overview-grid">
+              <div><Database size={22} /><span>Playlists Loaded</span><b>{playlists.length}</b></div>
+              <div><DollarSign size={22} /><span>Paid Activations</span><b>{stats.paidActivations}</b></div>
+              <div><Tv size={22} /><span>Total Devices</span><b>{stats.total}</b></div>
+              <div><Wifi size={22} /><span>Online Devices</span><b>{stats.online}</b></div>
+            </div>
+          </div>
+        </section>
 
-              <select
-                value={device.playlist_id || ''}
-                onChange={e => assignPlaylist(device.mac, e.target.value)}
-              >
-                <option value="">
-                  No Playlist
-                </option>
+        <section className="panel table-panel">
+          <div className="panel-toolbar">
+            <h2><Tv size={19} /> Devices {loading ? '...' : `(${filteredDevices.length})`}</h2>
+            <div className="toolbar-actions">
+              <div className="mini-search"><Search size={16} /><input placeholder="Search by MAC..." value={query} onChange={e => setQuery(e.target.value)} /></div>
+              <button className="light-btn"><Filter size={16} /> Filter</button>
+              <button className="blue-btn"><Download size={16} /> Export</button>
+            </div>
+          </div>
 
-                {playlists.map(playlist => (
-                  <option key={playlist.id} value={playlist.id}>
-                    #{playlist.id} - {playlist.name.slice(0, 12)}
-                  </option>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>MAC Address</th><th>Status</th><th>Expires</th><th>Playlist</th><th>Online</th><th>Last Seen</th><th>Actions</th></tr></thead>
+              <tbody>
+                {filteredDevices.map(device => (
+                  <tr key={device.id || device.mac}>
+                    <td><strong>{device.mac}</strong></td>
+                    <td><span className={device.blocked ? 'badge red' : device.active ? 'badge green' : 'badge orange'}>{device.blocked ? 'Blocked' : device.active ? 'Active' : 'Inactive'}</span></td>
+                    <td>{device.expire_at?.slice(0, 10) || '-'}</td>
+                    <td>
+                      <select value={device.playlist_id || ''} onChange={e => assignPlaylist(device.mac, e.target.value)}>
+                        <option value="">No Playlist</option>
+                        {playlists.map(playlist => <option key={playlist.id} value={playlist.id}>#{playlist.id} - {playlist.name.slice(0, 14)}</option>)}
+                      </select>
+                    </td>
+                    <td><span className={isOnline(device.last_seen) ? 'online-dot' : 'offline-dot'}></span>{isOnline(device.last_seen) ? 'Online' : 'Offline'}</td>
+                    <td>{formatLastSeen(device.last_seen)}</td>
+                    <td>
+                      <div className="action-buttons">
+                        {device.blocked ? <button className="blue-square" onClick={() => unblockDevice(device.mac)}><Unlock size={15} /></button> : <button className="orange-square" onClick={() => blockDevice(device.mac)}><Ban size={15} /></button>}
+                        <button className="red-square" onClick={() => deleteDevice(device.mac)}><Trash2 size={15} /></button>
+                      </div>
+                    </td>
+                  </tr>
                 ))}
-              </select>
-
-              <span>
-                {device.expire_at?.slice(0, 10)}
-              </span>
-
-              <div className="actions">
-                {device.blocked ? (
-                  <button
-                    className="success-btn"
-                    onClick={() => unblockDevice(device.mac)}
-                  >
-                    <Unlock size={14}/>
-                    Unblock
-                  </button>
-                ) : (
-                  <button
-                    className="danger"
-                    onClick={() => blockDevice(device.mac)}
-                  >
-                    <Ban size={14}/>
-                    Block
-                  </button>
-                )}
-
-                <button
-                  className="delete-btn"
-                  onClick={() => deleteDevice(device.mac)}
-                >
-                  <Trash2 size={14}/>
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {filteredDevices.length === 0 && (
-          <p className="muted">No devices found.</p>
-        )}
-      </section>
-
-      <section className="card wide-card">
-        <h2>
-          <Clock3 size={18}/>
-          Recent Payments
-        </h2>
-
-        <div className="table payments-table recent-payments-table">
-          <div className="table-head">
-            <span>MAC</span>
-            <span>Customer</span>
-            <span>Email</span>
-            <span>Amount</span>
-            <span>Transaction</span>
-            <span>PayPal Order</span>
-            <span>Date</span>
+              </tbody>
+            </table>
+            {filteredDevices.length === 0 && <p className="empty-state">No devices found.</p>}
           </div>
+          <p className="table-foot">Showing {filteredDevices.length} of {devices.length} devices</p>
+        </section>
 
-          {recentPayments.map(payment => (
-            <div className="table-row" key={payment.id}>
-              <b>{payment.mac}</b>
-
-              <span>
-                {payment.payer_name || '-'}
-              </span>
-
-              <span title={payment.payer_email || ''}>
-                {payment.payer_email || '-'}
-              </span>
-
-              <span>
-                {payment.price || '-'}
-              </span>
-
-              <span title={payment.transaction_id || ''}>
-                {payment.transaction_id
-                  ? payment.transaction_id.slice(0, 12)
-                  : '-'}
-              </span>
-
-              <span title={payment.paypal_order_id || ''}>
-                {payment.paypal_order_id
-                  ? payment.paypal_order_id.slice(0, 12)
-                  : '-'}
-              </span>
-
-              <span>
-                {payment.created_at?.slice(0, 10) || '-'}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        {recentPayments.length === 0 && (
-          <p className="muted">No recent payments yet.</p>
-        )}
-      </section>
-    </main>
+        <section className="panel table-panel payments-panel">
+          <h2><Clock3 size={19} /> Recent Payments</h2>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>MAC</th><th>Customer</th><th>Email</th><th>Amount</th><th>Transaction</th><th>PayPal Order</th><th>Date</th></tr></thead>
+              <tbody>
+                {recentPayments.map(payment => (
+                  <tr key={payment.id}>
+                    <td><strong>{payment.mac}</strong></td><td>{payment.payer_name || '-'}</td><td>{payment.payer_email || '-'}</td><td>{payment.price || '-'}</td><td>{payment.transaction_id ? payment.transaction_id.slice(0, 12) : '-'}</td><td>{payment.paypal_order_id ? payment.paypal_order_id.slice(0, 12) : '-'}</td><td>{payment.created_at?.slice(0, 10) || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {recentPayments.length === 0 && <p className="empty-state">No recent payments yet.</p>}
+          </div>
+        </section>
+      </main>
+    </div>
   );
 }
